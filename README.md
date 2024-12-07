@@ -1,5 +1,8 @@
 (Not complete) Raylib bindings for the C3 programming language.
 
+This is a direct translation of the raylib.h from raylib 5.5 to c3. This is not at all complete and
+would only give the raylib core module.
+
 raylib:
 - https://www.raylib.com/
 - https://github.com/raysan5/raylib
