@@ -259,7 +259,8 @@ struct Music {
     void* ctxData;              // Audio context data, depends on type
 }
 
-// TODO VrDeviceInfo VrStereoConfig
+// TODO VrDeviceInfo
+// TODO VrStereoConfig
 
 struct FilePathList {
     CUInt capacity;          // Filepaths max entries
@@ -853,15 +854,24 @@ extern fn void play_automation_event(AutomationEvent event) @extern("PlayAutomat
 //------------------------------------------------------------------------------------
 
 // Input-related functions: keyboard
-extern fn bool is_key_pressed(CInt key) @extern("IsKeyPressed");                             // Check if a key has been pressed once
-extern fn bool is_key_pressed_repeat(CInt key) @extern("IsKeyPressedRepeat");                       // Check if a key has been pressed again
-extern fn bool is_key_down(CInt key) @extern("IsKeyDown");                                // Check if a key is being pressed
-extern fn bool is_key_released(CInt key) @extern("IsKeyReleased");                            // Check if a key has been released once
-extern fn bool is_key_up(CInt key) @extern("IsKeyUp");                                  // Check if a key is NOT being pressed
+// extern fn bool is_key_pressed(CInt key) @extern("IsKeyPressed");                             // Check if a key has been pressed once
+// extern fn bool is_key_pressed_repeat(CInt key) @extern("IsKeyPressedRepeat");                       // Check if a key has been pressed again
+// extern fn bool is_key_down(CInt key) @extern("IsKeyDown");                                // Check if a key is being pressed
+// extern fn bool is_key_released(CInt key) @extern("IsKeyReleased");                            // Check if a key has been released once
+// extern fn bool is_key_up(CInt key) @extern("IsKeyUp");                                  // Check if a key is NOT being pressed
+// extern fn CInt get_key_pressed() @extern("GetKeyPressed");                                // Get key pressed (keycode), call it multiple times for keys queued, returns 0 when the queue is empty
+// extern fn CInt get_char_pressed() @extern("GetCharPressed");                               // Get char pressed (unicode), call it multiple times for chars queued, returns 0 when the queue is empty
+// extern fn void set_exit_key(CInt key) @extern("SetExitKey");                               // Set a custom key to exit program (default is ESC)
+// extern fn char* get_key_name(CInt key) @extern("GetKeyName");                        // Get name of a QWERTY key on the current keyboard layout (eg returns string "q" for KEY_A on an AZERTY keyboard)
+extern fn bool is_key_pressed(KeyboardKey key) @extern("IsKeyPressed");                             // Check if a key has been pressed once
+extern fn bool is_key_pressed_repeat(KeyboardKey key) @extern("IsKeyPressedRepeat");                       // Check if a key has been pressed again
+extern fn bool is_key_down(KeyboardKey key) @extern("IsKeyDown");                                // Check if a key is being pressed
+extern fn bool is_key_released(KeyboardKey key) @extern("IsKeyReleased");                            // Check if a key has been released once
+extern fn bool is_key_up(KeyboardKey key) @extern("IsKeyUp");                                  // Check if a key is NOT being pressed
 extern fn CInt get_key_pressed() @extern("GetKeyPressed");                                // Get key pressed (keycode), call it multiple times for keys queued, returns 0 when the queue is empty
 extern fn CInt get_char_pressed() @extern("GetCharPressed");                               // Get char pressed (unicode), call it multiple times for chars queued, returns 0 when the queue is empty
-extern fn void set_exit_key(CInt key) @extern("SetExitKey");                               // Set a custom key to exit program (default is ESC)
-extern fn char* get_key_name(CInt key) @extern("GetKeyName");                        // Get name of a QWERTY key on the current keyboard layout (eg returns string "q" for KEY_A on an AZERTY keyboard)
+extern fn void set_exit_key(KeyboardKey key) @extern("SetExitKey");                               // Set a custom key to exit program (default is ESC)
+extern fn char* get_key_name(KeyboardKey key) @extern("GetKeyName");                        // Get name of a QWERTY key on the current keyboard layout (eg returns string "q" for KEY_A on an AZERTY keyboard)
 
 // Input-related functions: gamepads
 extern fn bool is_gamepad_available(CInt gamepad) @extern("IsGamepadAvailable");                                        // Check if a gamepad is available
@@ -1303,4 +1313,86 @@ extern fn RayCollision get_ray_collision_mesh(Ray ray, Mesh mesh, Matrix transfo
 extern fn RayCollision get_ray_collision_triangle(Ray ray, Vector3 p1, Vector3 p2, Vector3 p3) @extern("GetRayCollisionTriangle");            // Get collision info between ray and triangle
 extern fn RayCollision get_ray_collision_quad(Ray ray, Vector3 p1, Vector3 p2, Vector3 p3, Vector3 p4) @extern("GetRayCollisionQuad");    // Get collision info between ray and quad
 
-// TODO remaining audio stuff
+//------------------------------------------------------------------------------------
+// Audio Loading and Playing Functions (Module: audio)
+//------------------------------------------------------------------------------------
+def AudioCallback = fn void (void*, CUInt);
+// original: typedef void (*AudioCallback)(void *bufferData, unsigned int frames);
+
+// Audio device management functions
+extern fn void init_audio_device() @extern("InitAudioDevice");                                     // Initialize audio device and context
+extern fn void close_audio_device() @extern("CloseAudioDevice");                                    // Close the audio device and context
+extern fn bool is_audio_device_ready() @extern("IsAudioDeviceReady");                                  // Check if audio device has been initialized successfully
+extern fn void set_master_volume(float volume) @extern("SetMasterVolume");                             // Set master volume (listener)
+extern fn float get_master_volume() @extern("GetMasterVolume");                                    // Get master volume (listener)
+
+// Wave/Sound loading/unloading functions
+extern fn Wave load_wave(char *fileName) @extern("LoadWave");                            // Load wave data from file
+extern fn Wave load_wave_from_memory(char *fileType, char *fileData, CInt dataSize) @extern("LoadWaveFromMemory"); // Load wave from memory buffer, fileType refers to extension: i.e. '.wav'
+extern fn bool is_wave_valid(Wave wave) @extern("IsWaveValid");                                    // Checks if wave data is valid (data loaded and parameters)
+extern fn Sound load_sound(char *fileName) @extern("LoadSound");                          // Load sound from file
+extern fn Sound load_sound_from_wave(Wave wave) @extern("LoadSoundFromWave");                             // Load sound from wave data
+extern fn Sound load_sound_alias(Sound source) @extern("LoadSoundAlias");                             // Create a new sound that shares the same sample data as the source sound, does not own the sound data
+extern fn bool is_sound_valid(Sound sound) @extern("IsSoundValid");                                 // Checks if a sound is valid (data loaded and buffers initialized)
+extern fn void update_sound(Sound sound, void *data, CInt sampleCount) @extern("UpdateSound"); // Update sound buffer with new data
+extern fn void unload_wave(Wave wave) @extern("UnloadWave");                                     // Unload wave data
+extern fn void unload_sound(Sound sound) @extern("UnloadSound");                                  // Unload sound
+extern fn void unload_sound_alias(Sound alias) @extern("UnloadSoundAlias");                             // Unload a sound alias (does not deallocate sample data)
+extern fn bool export_wave(Wave wave, char *fileName) @extern("ExportWave");               // Export wave data to file, returns true on success
+extern fn bool export_wave_as_code(Wave wave, char *fileName) @extern("ExportWaveAsCode");         // Export wave sample data to code (.h), returns true on success
+
+// Wave/Sound management functions
+extern fn void play_sound(Sound sound) @extern("PlaySound");                                    // Play a sound
+extern fn void stop_sound(Sound sound) @extern("StopSound");                                    // Stop playing a sound
+extern fn void pause_sound(Sound sound) @extern("PauseSound");                                   // Pause a sound
+extern fn void resume_sound(Sound sound) @extern("ResumeSound");                                  // Resume a paused sound
+extern fn bool is_sound_playing(Sound sound) @extern("IsSoundPlaying");                               // Check if a sound is currently playing
+extern fn void set_sound_volume(Sound sound, float volume) @extern("SetSoundVolume");                 // Set volume for a sound (1.0 is max level)
+extern fn void set_sound_pitch(Sound sound, float pitch) @extern("SetSoundPitch");                   // Set pitch for a sound (1.0 is base level)
+extern fn void set_sound_pan(Sound sound, float pan) @extern("SetSoundPan");                       // Set pan for a sound (0.5 is center)
+extern fn Wave wave_copy(Wave wave) @extern("WaveCopy");                                       // Copy a wave to a new wave
+extern fn void wave_crop(Wave *wave, CInt initFrame, CInt finalFrame) @extern("WaveCrop");       // Crop a wave to defined frames range
+extern fn void wave_format(Wave *wave, CInt sampleRate, CInt sampleSize, CInt channels) @extern("WaveFormat"); // Convert wave data to desired format
+extern fn float* load_wave_samples(Wave wave) @extern("LoadWaveSamples");                              // Load samples data from wave as a 32bit float data array
+extern fn void unload_wave_samples(float *samples) @extern("UnloadWaveSamples");                         // Unload samples data loaded with LoadWaveSamples()
+
+// Music management functions
+extern fn Music load_music_stream(char *fileName) @extern("LoadMusicStream");                    // Load music stream from file
+extern fn Music load_music_stream_from_memory(char *fileType, char *data, CInt dataSize) @extern("LoadMusicStreamFromMemory"); // Load music stream from data
+extern fn bool is_music_valid(Music music) @extern("IsMusicValid");                                 // Checks if a music stream is valid (context and buffers initialized)
+extern fn void unload_music_stream(Music music) @extern("UnloadMusicStream");                            // Unload music stream
+extern fn void play_music_stream(Music music) @extern("PlayMusicStream");                              // Start music playing
+extern fn bool is_music_stream_playing(Music music) @extern("IsMusicStreamPlaying");                         // Check if music is playing
+extern fn void update_music_stream(Music music) @extern("UpdateMusicStream");                            // Updates buffers for music streaming
+extern fn void stop_music_stream(Music music) @extern("StopMusicStream");                              // Stop music playing
+extern fn void pause_music_stream(Music music) @extern("PauseMusicStream");                             // Pause music playing
+extern fn void resume_music_stream(Music music) @extern("ResumeMusicStream");                            // Resume playing paused music
+extern fn void seek_music_stream(Music music, float position) @extern("SeekMusicStream");              // Seek music to a position (in seconds)
+extern fn void set_music_volume(Music music, float volume) @extern("SetMusicVolume");                 // Set volume for music (1.0 is max level)
+extern fn void set_music_pitch(Music music, float pitch) @extern("SetMusicPitch");                   // Set pitch for a music (1.0 is base level)
+extern fn void set_music_pan(Music music, float pan) @extern("SetMusicPan");                       // Set pan for a music (0.5 is center)
+extern fn float get_music_time_length(Music music) @extern("GetMusicTimeLength");                          // Get music time length (in seconds)
+extern fn float get_music_time_played(Music music) @extern("GetMusicTimePlayed");                          // Get current music time played (in seconds)
+
+// AudioStream management functions
+extern fn AudioStream load_audio_stream(CUInt sampleRate, CUInt sampleSize, CUInt channels) @extern("LoadAudioStream"); // Load audio stream (to stream raw audio pcm data)
+extern fn bool is_audio_stream_valid(AudioStream stream) @extern("IsAudioStreamValid");                    // Checks if an audio stream is valid (buffers initialized)
+extern fn void unload_audio_stream(AudioStream stream) @extern("UnloadAudioStream");                     // Unload audio stream and free memory
+extern fn void update_audio_stream(AudioStream stream, void *data, CInt frameCount) @extern("UpdateAudioStream"); // Update audio stream buffers with data
+extern fn bool is_audio_stream_processed(AudioStream stream) @extern("IsAudioStreamProcessed");                // Check if any audio stream buffers requires refill
+extern fn void play_audio_stream(AudioStream stream) @extern("PlayAudioStream");                       // Play audio stream
+extern fn void pause_audio_stream(AudioStream stream) @extern("PauseAudioStream");                      // Pause audio stream
+extern fn void resume_audio_stream(AudioStream stream) @extern("ResumeAudioStream");                     // Resume audio stream
+extern fn bool is_audio_stream_playing(AudioStream stream) @extern("IsAudioStreamPlaying");                  // Check if audio stream is playing
+extern fn void stop_audio_stream(AudioStream stream) @extern("StopAudioStream");                       // Stop audio stream
+extern fn void set_audio_stream_volume(AudioStream stream, float volume) @extern("SetAudioStreamVolume");    // Set volume for audio stream (1.0 is max level)
+extern fn void set_audio_stream_pitch(AudioStream stream, float pitch) @extern("SetAudioStreamPitch");      // Set pitch for audio stream (1.0 is base level)
+extern fn void set_audio_stream_pan(AudioStream stream, float pan) @extern("SetAudioStreamPan");          // Set pan for audio stream (0.5 is centered)
+extern fn void set_audio_stream_buffer_size_default(CInt size) @extern("SetAudioStreamBufferSizeDefault");                 // Default size for new audio streams
+extern fn void set_audio_stream_callback(AudioStream stream, AudioCallback callback) @extern("SetAudioStreamCallback"); // Audio thread callback to request new data
+
+extern fn void attach_audio_stream_processor(AudioStream stream, AudioCallback processor) @extern("AttachAudioStreamProcessor"); // Attach audio stream processor to stream, receives the samples as 'float'
+extern fn void detach_audio_stream_processor(AudioStream stream, AudioCallback processor) @extern("DetachAudioStreamProcessor"); // Detach audio stream processor from stream
+
+extern fn void attach_audio_mixed_processor(AudioCallback processor) @extern("AttachAudioMixedProcessor"); // Attach audio stream processor to the entire audio pipeline, receives the samples as 'float'
+extern fn void detach_audio_mixed_processor(AudioCallback processor) @extern("DetachAudioMixedProcessor"); // Detach audio stream processor from the entire audio pipeline
