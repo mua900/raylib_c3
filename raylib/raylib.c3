@@ -236,9 +236,250 @@ struct Wave {
     void* data;                 // Buffer data pointer
 }
 
+// -------------------------------------------
+// this part is taken from miniaudio.h (https://miniaud.io/) (https://github.com/mackron/miniaudio)
+// -------------------------------------------
+distinct Ma_format = CInt;
+const Ma_format MA_FORMAT_UNKOWN = 0;     /* Mainly used for indicating an error, but also used as the default for the output format for decoders. */
+const Ma_format MA_FORMAT_U8      = 1;
+const Ma_format MA_FORMAT_S16     = 2;     /* Seems to be the most widely supported format. */
+const Ma_format MA_FORMAT_S24     = 3;     /* Tightly packed. 3 bytes per sample. */
+const Ma_format MA_FORMAT_S32     = 4;
+const Ma_format MA_FORMAT_F32     = 5;
+const Ma_format MA_FORMAT_COUNT   = 6;
+
+distinct Ma_dither_mode = CInt;
+const Ma_dither_mode MA_DITHER_MODE_NONE = 0;
+const Ma_dither_mode MA_DITHER_MODE_RECTANGLE = 1;
+const Ma_dither_mode MA_DITHER_MODE_TRIANGLE = 2;
+
+distinct Ma_data_converter_execution_path = CInt;
+const Ma_data_converter_execution_path MA_DATA_CONVERTER_EXECUTION_PATH_PASSTHROUGH = 0;       /* No conversion. */
+const Ma_data_converter_execution_path MA_DATA_CONVERTER_EXECUTION_PATH_FORMAT_ONLY = 1;       /* Only format conversion. */
+const Ma_data_converter_execution_path MA_DATA_CONVERTER_EXECUTION_PATH_CHANELS_ONLY = 2;     /* Only channel conversion. */
+const Ma_data_converter_execution_path MA_DATA_CONVERTER_EXECUTION_PATH_RESAMPLE_ONLY = 3;     /* Only resampling. */
+const Ma_data_converter_execution_path MA_DATA_CONVERTER_EXECUTION_PATH_RESAMPLE_FIRST = 4;    /* All conversions, but resample as the first step. */
+const Ma_data_converter_execution_path MA_DATA_CONVERTER_EXECUTION_PATH_CHANELS_FIRST = 5;    /* All conversions, but channels as the first step. */
+
+distinct Ma_channel_conversion_path = CInt;
+const Ma_channel_conversion_path MA_CHANEL_CONVERSION_PATH_UNKNOWN = 0;
+const Ma_channel_conversion_path MA_CHANEL_CONVERSION_PATH_PASSTHROUGH = 1;
+const Ma_channel_conversion_path MA_CHANEL_CONVERSION_PATH_MONO_OUT = 2;    /* Converting to mono. */
+const Ma_channel_conversion_path MA_CHANEL_CONVERSION_PATH_MONO_IN = 3;     /* Converting from mono. */
+const Ma_channel_conversion_path MA_CHANEL_CONVERSION_PATH_SHUFFLE = 4;     /* Simple shuffle. Will use this when all channels are present in both input and output channel maps, but just in a different order. */
+const Ma_channel_conversion_path MA_CHANEL_CONVERSION_PATH_WEIGHTS = 5;     /* Blended based on weights. */
+
+distinct Ma_channel_mix_mode = CInt;
+const Ma_channel_mix_mode MA_CHANEL_MIX_MODE_RECTANGULAR= 0;   /* Simple averaging based on the plane(s) the channel is sitting on. */
+const Ma_channel_mix_mode MA_CHANEL_MIX_MODE_SIMPLE = 1;            /* Drop excess channels; zeroed out extra channels. */
+const Ma_channel_mix_mode MA_CHANEL_MIX_MODE_CUSTOM_WEIGHTS = 2;    /* Use custom weights specified in ma_channel_converter_config. */
+const Ma_channel_mix_mode MA_CHANEL_MIX_MODE_DEFAULT = MA_CHANEL_MIX_MODE_RECTANGULAR;
+
+union Weights
+{
+    float**    f32;
+    int** s16;
+}  /* [in][out] */
+
+struct Ma_channel_converter
+{
+    Ma_format format;
+    uint channelsIn;
+    uint channelsOut;
+    Ma_channel_mix_mode mixingMode;
+    Ma_channel_conversion_path conversionPath;
+    char* pChannelMapIn;
+    char* pChannelMapOut;
+    char* pShuffleTable;    /* Indexed by output channel index. */
+
+    Weights weights;
+
+    /* Memory management. */
+    void* _pHeap;
+    int _ownsHeap;
+}
+
+struct Ma_linear_resampler_config
+{
+    Ma_format format;
+    uint channels;
+    uint sampleRateIn;
+    uint sampleRateOut;
+    uint lpfOrder;         /* The low-pass filter order. Setting this to 0 will disable low-pass filtering. */
+    double    lpfNyquistFactor; /* 0..1. Defaults to 1. 1 = Half the sampling frequency (Nyquist Frequency), 0.5 = Quarter the sampling frequency (half Nyquest Frequency), etc. */
+}
+
+struct Ma_lpf1
+{
+    Ma_format format;
+    uint channels;
+    Ma_biquad_coefficient a;
+    Ma_biquad_coefficient* pR1;
+
+    /* Memory management. */
+    void* _pHeap;
+    // ma_bool32 _ownsHeap;
+    int _ownsHeap;
+}
+
+union Ma_biquad_coefficient
+{
+    float    f32;
+    int      s32;
+}
+
+struct Ma_biquad
+{
+    Ma_format format;
+    uint channels;
+    Ma_biquad_coefficient b0;
+    Ma_biquad_coefficient b1;
+    Ma_biquad_coefficient b2;
+    Ma_biquad_coefficient a1;
+    Ma_biquad_coefficient a2;
+    Ma_biquad_coefficient* pR1;
+    Ma_biquad_coefficient* pR2;
+
+    /* Memory management. */
+    void* _pHeap;
+    // ma_bool32 _ownsHeap;
+    int _ownsHeap;
+}
+
+struct Ma_lpf2
+{
+    Ma_biquad bq;   /* The second order low-pass filter is implemented as a biquad filter. */
+}
+
+struct Ma_lpf
+{
+    Ma_format format;
+    uint channels;
+    uint sampleRate;
+    uint lpf1Count;
+    uint lpf2Count;
+    Ma_lpf1* pLPF1;
+    Ma_lpf2* pLPF2;
+
+    /* Memory management. */
+    void* _pHeap;
+    // ma_bool32 _ownsHeap;
+    int _ownsHeap;
+}
+
+struct Ma_linear_resampler
+{
+    Ma_linear_resampler_config config;
+    uint inAdvanceInt;
+    uint inAdvanceFrac;
+    uint inTimeInt;
+    uint inTimeFrac;
+    union x0
+    {
+        float* f32;
+        short* s16;
+    } /* The previous input frame. */
+    union x1
+    {
+        float* f32;
+        short* s16;
+    } /* The next input frame. */
+    Ma_lpf lpf;
+
+    /* Memory management. */
+    void* _pHeap;
+    // ma_bool32 _ownsHeap;
+    int _ownsHeap;
+}
+
+union State
+{
+   Ma_linear_resampler linear;
+}  /* State for stock resamplers so we can avoid a malloc. For stock resamplers, pBackend will point here. */
+
+struct Ma_resampler
+{
+    // ma_resampling_backend* pBackend;
+    // ma_resampling_backend_vtable* pBackendVTable;
+    void* pBackend;
+    void* pBackendVTable;
+    void* pBackendUserData;
+    Ma_format format;
+    uint channels;
+    uint sampleRateIn;
+    uint sampleRateOut;
+
+    State state;
+
+    /* Memory management. */
+    void* _pHeap;
+    // bool32 _ownsHeap;
+    int _ownsHeap;
+}
+
+struct Ma_data_converter
+{
+    Ma_format formatIn;
+    Ma_format formatOut;
+    uint channelsIn;
+    uint channelsOut;
+    uint sampleRateIn;
+    uint sampleRateOut;
+    Ma_dither_mode ditherMode;
+    Ma_data_converter_execution_path executionPath; /* The execution path the data converter will follow when processing. */
+
+    Ma_channel_converter ma_channel_converter;
+    Ma_resampler ma_resampler;
+
+    bool hasPreFormatConversion;
+    bool hasPostFormatConversion;
+    bool hasChannelConverter;
+    bool hasResampler;
+    bool isPassthrough;
+
+    /* Memory management. */
+    char _ownsHeap;
+    void* _pHeap;
+}
+// ------------------------------------------
+// end of the portion taken from miniaudio.h
+// ------------------------------------------
+
+struct RAudioBuffer {
+    Ma_data_converter ma_data_converter;
+
+    AudioCallback callback;         // Audio buffer callback for buffer filling on audio threads
+    RAudioProcessor *processor;     // Audio processor
+
+    float volume;                   // Audio buffer volume
+    float pitch;                    // Audio buffer pitch
+    float pan;                      // Audio buffer pan (0.0f to 1.0f)
+
+    bool playing;                   // Audio buffer state: AUDIO_PLAYING
+    bool paused;                    // Audio buffer state: AUDIO_PAUSED
+    bool looping;                   // Audio buffer looping, default to true for AudioStreams
+    CInt usage;                      // Audio buffer usage mode: STATIC or STREAM
+
+    bool[2] isSubBufferProcessed;   // SubBuffer processed (virtual double buffer)
+    CUInt sizeInFrames;      // Total buffer size in frames
+    CUInt frameCursorPos;    // Frame cursor position
+    CUInt framesProcessed;   // Total frames processed in this buffer (required for play timing)
+
+    char *data;            // Data buffer, on music stream keeps filling
+
+    RAudioBuffer *next;             // Next audio buffer on the list
+    RAudioBuffer *prev;             // Previous audio buffer on the list
+}
+
+struct RAudioProcessor {
+    AudioCallback process;          // Processor callback function
+    RAudioProcessor *next;          // Next audio processor on the list
+    RAudioProcessor *prev;          // Previous audio processor on the list
+}
+
 struct AudioStream {
-    // TODO RAudioBuffer *buffer;       // Pointer to internal data used by the audio system
-    // TODO RAudioProcessor *processor; // Pointer to internal data processor, useful for audio effects
+    RAudioBuffer *buffer;       // Pointer to internal data used by the audio system
+    RAudioProcessor *processor; // Pointer to internal data processor, useful for audio effects
 
     CUInt sampleRate;    // Frequency (samples per second)
     CUInt sampleSize;    // Bit depth (bits per sample): 8, 16, 32 (24 not supported)
@@ -638,8 +879,14 @@ const NPatchLayout NPATCH_THREE_PATCH_VERTICAL = 1;    // Npatch layout: 1x3 til
 const NPatchLayout NPATCH_THREE_PATCH_HORIZONTAL = 2;  // Npatch layout: 3x1 tiles
 
 
-// TODO Callbacks (https://github.com/raysan5/raylib/blob/master/src/raylib.h#L1108)
+// TODO Callbacks (https://github.com/raysan5/raylib/blob/master/src/raylib.h#L950)
+// void (*TraceLogCallback)(int logLevel, const char *text, va_list args);  // Logging: Redirect trace log messages
+// char *(*LoadFileDataCallback)(const char *fileName, int *dataSize);    // FileIO: Load binary data
+// bool (*SaveFileDataCallback)(const char *fileName, void *data, int dataSize);   // FileIO: Save binary data
+// char *(*LoadFileTextCallback)(const char *fileName);            // FileIO: Load text data
 
+def SaveFileTextCallback = fn bool (char*, char*);
+// bool (*SaveFileTextCallback)(const char *fileName, char *text); // FileIO: Save text data
 
 //------------------------------------------------------------------------------------
 // Global Variables Definition
@@ -888,10 +1135,14 @@ extern fn void set_gamepad_vibration(CInt gamepad, float leftMotor, float rightM
 
 
 // Input-related functions: mouse
-extern fn bool is_mouse_button_pressed(CInt button) @extern("IsMouseButtonPressed");                  // Check if a mouse button has been pressed once
-extern fn bool is_mouse_button_down(CInt button) @extern("IsMouseButtonDown");                     // Check if a mouse button is being pressed
-extern fn bool is_mouse_button_released(CInt button) @extern("IsMouseButtonReleased");                 // Check if a mouse button has been released once
-extern fn bool is_mouse_button_up(CInt button) @extern("IsMouseButtonUp");                       // Check if a mouse button is NOT being pressed
+// extern fn bool is_mouse_button_pressed(CInt button) @extern("IsMouseButtonPressed");                  // Check if a mouse button has been pressed once
+// extern fn bool is_mouse_button_down(CInt button) @extern("IsMouseButtonDown");                     // Check if a mouse button is being pressed
+// extern fn bool is_mouse_button_released(CInt button) @extern("IsMouseButtonReleased");                 // Check if a mouse button has been released once
+// extern fn bool is_mouse_button_up(CInt button) @extern("IsMouseButtonUp");                       // Check if a mouse button is NOT being pressed
+extern fn bool is_mouse_button_pressed(MouseButton button) @extern("IsMouseButtonPressed");                  // Check if a mouse button has been pressed once
+extern fn bool is_mouse_button_down(MouseButton button) @extern("IsMouseButtonDown");                     // Check if a mouse button is being pressed
+extern fn bool is_mouse_button_released(MouseButton button) @extern("IsMouseButtonReleased");                 // Check if a mouse button has been released once
+extern fn bool is_mouse_button_up(MouseButton button) @extern("IsMouseButtonUp");                       // Check if a mouse button is NOT being pressed
 extern fn CInt get_mouse_x() @extern("GetMouseX");                                    // Get mouse position X
 extern fn CInt get_mouse_y() @extern("GetMouseY");                                    // Get mouse position Y
 extern fn Vector2 get_mouse_position() @extern("GetMousePosition");                         // Get mouse position XY
@@ -1317,7 +1568,7 @@ extern fn RayCollision get_ray_collision_quad(Ray ray, Vector3 p1, Vector3 p2, V
 // Audio Loading and Playing Functions (Module: audio)
 //------------------------------------------------------------------------------------
 def AudioCallback = fn void (void*, CUInt);
-// original: typedef void (*AudioCallback)(void *bufferData, unsigned int frames);
+// original:  void (*AudioCallback)(void *bufferData, unsigned int frames);
 
 // Audio device management functions
 extern fn void init_audio_device() @extern("InitAudioDevice");                                     // Initialize audio device and context
